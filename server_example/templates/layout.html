@@ -1,0 +1,21 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .header { background: #f0f0f0; padding: 20px; border-radius: 5px; }
+        .content { margin: 20px 0; }
+        .footer { border-top: 1px solid #ccc; padding-top: 20px; color: #666; }
+        .reload-notice { background: #e8f5e8; border: 1px solid #4caf50; color: #2e7d32; padding: 10px; border-radius: 3px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    {{ include "header" }}
+    <div class="content">
+        {{ include "content" }}
+    </div>
+    {{ include "footer" }}
+</body>
+</html>

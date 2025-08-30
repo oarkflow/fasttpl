@@ -1,0 +1,36 @@
+<div class="reload-notice">
+    <strong>Template Auto-Reload Demo</strong><br>
+    Edit the template files in the 'templates/' directory and refresh this page to see changes instantly!
+</div>
+
+<h2>Welcome to {{ site.name }}</h2>
+<p>This is the home page. Current time: {{ currentTime }}</p>
+
+<h3>Features Demonstrated:</h3>
+<ul>
+    <li>Automatic template reloading when files change</li>
+    <li>Template includes with partials</li>
+    <li>FastTpl's high-performance rendering</li>
+    <li>Live development experience</li>
+</ul>
+
+{{ if user.loggedIn }}
+<div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <h3>Hello, {{ user.name }}!</h3>
+    <p>You are logged in as an administrator.</p>
+</div>
+{{ else }}
+<div style="background: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><a href="/login">Login</a> to access admin features.</p>
+</div>
+{{ end }}
+
+<h3>Recent Posts</h3>
+<ul>
+    {{ range post in posts }}
+    <li>
+        <strong>{{ $post.title }}</strong> by {{ $post.author }}<br>
+        <small>{{ $post.date }}</small>
+    </li>
+    {{ end }}
+</ul>

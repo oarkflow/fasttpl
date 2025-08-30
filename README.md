@@ -14,14 +14,34 @@ A high-performance, zero-allocation template engine for Go that compiles templat
 - 🎨 **Custom Delimiters**: Support for custom template delimiters
 - 🔧 **Extensible Filters**: Built-in filters with support for custom ones
 - 📁 **File-based Templates**: Load templates from files with automatic include discovery
+- 🔄 **Auto-Reload**: Automatic template reloading when files change (development mode)
 - 🏗️ **Template Pools**: Reusable template pools for hot paths
 - ⚡ **Fast Reflection**: Cached reflection with precomputed field access
 
 ## Installation
 
 ```bash
-go get github.com/oarkflow/fasttpl
+go get github.com/yourusername/fasttpl
 ```
+
+## Running Examples
+
+### Basic Examples
+
+```bash
+go run examples/example.go
+```
+
+### Server with Auto-Reload
+
+```bash
+cd server_example
+go run main.go
+```
+
+Then visit `http://localhost:8080` to see the auto-reload demo in action!
+
+See `server_example/README.md` for detailed information about the server example.
 
 ## Quick Start
 
@@ -188,6 +208,46 @@ header, _ := fasttpl.Compile("<header>Hi!</header>")
 tmpl.RegisterPartial("header", header)
 ```
 
+### Reload Manager
+
+#### `NewReloadManager(checkInterval time.Duration) *ReloadManager`
+
+Creates a new reload manager that checks for file changes at the specified interval.
+
+```go
+rm := fasttpl.NewReloadManager(500 * time.Millisecond)
+```
+
+#### `(*ReloadManager) WatchFile(filename string, template *Template) error`
+
+Adds a specific file to be watched for changes.
+
+#### `(*ReloadManager) WatchDirectory(dir string, opts ...Option) error`
+
+Watches a directory for template files and automatically compiles them.
+
+#### `(*ReloadManager) AddCallback(callback ReloadCallback) error`
+
+Adds a callback function that gets called when templates are reloaded.
+
+```go
+rm.AddCallback(func(filename string, tmpl *fasttpl.Template, err error) {
+    if err != nil {
+        log.Printf("Reload error: %v", err)
+    } else {
+        log.Printf("Reloaded: %s", filename)
+    }
+})
+```
+
+#### `(*ReloadManager) Start()` / `(*ReloadManager) Stop()`
+
+Starts and stops the file watching process.
+
+#### `(*ReloadManager) GetTemplate(filename string, opts ...Option) (*Template, error)`
+
+Returns a template, reloading it if the file has been modified.
+
 ### Options
 
 #### `WithFilters(filters Filters)`
@@ -251,6 +311,61 @@ if err != nil {
 }
 
 result, err := pool.RenderString(map[string]any{"name": "World"})
+```
+
+### Auto-Reload
+
+FastTpl supports automatic template reloading for development environments:
+
+```go
+// Create a reload manager
+rm := fasttpl.NewReloadManager(500 * time.Millisecond)
+
+// Watch a directory for template changes
+err := rm.WatchDirectory("templates")
+if err != nil {
+    panic(err)
+}
+
+// Add a callback for when templates are reloaded
+rm.AddCallback(func(filename string, template *fasttpl.Template, err error) {
+    if err != nil {
+        log.Printf("Error reloading %s: %v", filename, err)
+    } else {
+        log.Printf("Reloaded template: %s", filename)
+    }
+})
+
+// Start the reload manager
+rm.Start()
+defer rm.Stop()
+
+// Get templates (will auto-reload when files change)
+tmpl, err := rm.GetTemplate("templates/layout.html")
+```
+
+#### Global Reload Functions
+
+```go
+// Watch files globally
+fasttpl.WatchFile("template.html", template)
+fasttpl.WatchDirectory("templates")
+
+// Add reload callback
+fasttpl.AddReloadCallback(func(filename string, tmpl *fasttpl.Template, err error) {
+    if err != nil {
+        log.Printf("Reload error for %s: %v", filename, err)
+    } else {
+        log.Printf("Template %s reloaded successfully", filename)
+    }
+})
+
+// Start/stop global reloader
+fasttpl.StartReloader()
+defer fasttpl.StopReloader()
+
+// Get watched template
+tmpl, err := fasttpl.GetWatchedTemplate("template.html")
 ```
 
 ## Built-in Filters
@@ -460,6 +575,30 @@ data := map[string]any{
 result, _ := tmpl.RenderString(data)
 // Output: <p>Price: $19.99</p><p>Items: 3 items</p>
 ```
+
+### Server with Auto-Reload
+
+FastTpl includes a complete server example demonstrating automatic template reloading:
+
+```bash
+cd server_example
+go run main.go
+```
+
+This starts a web server at `http://localhost:8080` that:
+
+- Serves templates with automatic reloading
+- Watches the `templates/` directory for changes
+- Recompiles templates when files are modified
+- Provides live development experience
+
+Features demonstrated:
+- Template inheritance with includes
+- Auto-reload when files change
+- Error handling and logging
+- RESTful status endpoint
+
+The server creates sample templates and demonstrates the reload functionality in action.
 
 ## Performance Features
 

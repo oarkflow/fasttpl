@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fasttpl"
 	"fmt"
 	"os"
+
+	"github.com/oarkflow/fasttpl"
 )
 
 func main() {
