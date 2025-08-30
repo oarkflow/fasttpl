@@ -3,7 +3,6 @@
 A high-performance, zero-allocation template engine for Go that compiles templates into optimized renderers.
 
 [![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## Features
 
@@ -21,7 +20,7 @@ A high-performance, zero-allocation template engine for Go that compiles templat
 ## Installation
 
 ```bash
-go get github.com/yourusername/fasttpl
+go get github.com/oarkflow/fasttpl
 ```
 
 ## Quick Start
