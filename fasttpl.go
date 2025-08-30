@@ -476,6 +476,216 @@ func (t *Template) RenderString(data any) (string, error) {
 	return sb.String(), nil
 }
 
+// ----------------------------- Template Engine -----------------------------
+
+type EngineOptions struct {
+	defaultLayout  string
+	reloadInterval time.Duration
+}
+
+type EngineOption func(*EngineOptions)
+
+func WithLayout(layout string) EngineOption {
+	return func(eo *EngineOptions) { eo.defaultLayout = layout }
+}
+
+func WithReloadInterval(interval time.Duration) EngineOption {
+	return func(eo *EngineOptions) { eo.reloadInterval = interval }
+}
+
+type Engine struct {
+	templates     map[string]*Template
+	defaultLayout string
+	reloadManager *ReloadManager
+	dir           string
+	ext           string
+	mu            sync.RWMutex
+}
+
+// NewTemplate creates a new template engine that loads all templates from the specified directory
+func NewTemplate(dir, ext string, opts ...EngineOption) (*Engine, error) {
+	eo := EngineOptions{
+		reloadInterval: 1 * time.Second,
+	}
+	for _, o := range opts {
+		o(&eo)
+	}
+
+	engine := &Engine{
+		templates:     make(map[string]*Template),
+		defaultLayout: eo.defaultLayout,
+		dir:           dir,
+		ext:           ext,
+		reloadManager: NewReloadManager(eo.reloadInterval),
+	}
+
+	// Load initial templates
+	if err := engine.loadTemplates(); err != nil {
+		return nil, err
+	}
+
+	// Set up reload callback
+	engine.reloadManager.AddCallback(func(filename string, template *Template, err error) {
+		if err != nil {
+			// Log error but don't fail
+			return
+		}
+		// Update the template in the engine
+		engine.mu.Lock()
+		// Extract template name from filename
+		base := filepath.Base(filename)
+		name := strings.TrimSuffix(base, ext)
+		engine.templates[name] = template
+		engine.mu.Unlock()
+	})
+
+	// Start watching the directory
+	if err := engine.reloadManager.WatchDirectory(dir); err != nil {
+		return nil, fmt.Errorf("failed to watch directory: %w", err)
+	}
+
+	// Start the reload manager
+	engine.reloadManager.Start()
+
+	return engine, nil
+}
+
+// loadTemplates loads all templates from the directory
+func (e *Engine) loadTemplates() error {
+	entries, err := os.ReadDir(e.dir)
+	if err != nil {
+		return fmt.Errorf("reading directory %q: %w", e.dir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), e.ext) {
+			continue
+		}
+
+		name := strings.TrimSuffix(entry.Name(), e.ext)
+		path := filepath.Join(e.dir, entry.Name())
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading template %q: %w", path, err)
+		}
+
+		tmpl, err := Compile(string(content))
+		if err != nil {
+			return fmt.Errorf("compiling template %q: %w", path, err)
+		}
+
+		// Auto-discover and register partials in the same directory
+		base := entry.Name()
+		baseNoExt := strings.TrimSuffix(base, e.ext)
+
+		// Look for partial files (e.g., _header.html, _footer.html)
+		partialEntries, err := os.ReadDir(e.dir)
+		if err == nil { // Don't fail if we can't read directory
+			for _, partialEntry := range partialEntries {
+				partialName := partialEntry.Name()
+				if partialEntry.IsDir() || partialName == base {
+					continue
+				}
+
+				// Register files that start with underscore as partials
+				if strings.HasPrefix(partialName, "_") {
+					partialPath := filepath.Join(e.dir, partialName)
+					partialBaseName := strings.TrimPrefix(partialName, "_")
+					partialBaseName = strings.TrimSuffix(partialBaseName, e.ext)
+
+					// Skip if partial name matches the main template's base name (to avoid conflicts)
+					if partialBaseName == baseNoExt {
+						continue
+					}
+
+					// Compile partial without include discovery to avoid infinite recursion
+					partialContent, err := os.ReadFile(partialPath)
+					if err != nil {
+						// Skip failed partials but don't fail the main compilation
+						continue
+					}
+
+					partial, err := Compile(string(partialContent))
+					if err != nil {
+						// Skip failed partials but don't fail the main compilation
+						continue
+					}
+					tmpl.RegisterPartial(partialBaseName, partial)
+				}
+			}
+		}
+
+		e.templates[name] = tmpl
+	}
+
+	return nil
+}
+
+// Stop stops the template reloading
+func (e *Engine) Stop() {
+	if e.reloadManager != nil {
+		e.reloadManager.Stop()
+	}
+}
+
+// Render renders the specified template with optional layout
+func (e *Engine) Render(w io.Writer, tmplName string, data any, layout ...string) error {
+	e.mu.RLock()
+	tmpl, ok := e.templates[tmplName]
+	e.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("template %q not found", tmplName)
+	}
+
+	var layoutTmpl *Template
+	var layoutName string
+
+	if len(layout) > 0 {
+		layoutName = layout[0]
+	} else {
+		layoutName = e.defaultLayout
+	}
+
+	if layoutName != "" {
+		e.mu.RLock()
+		layoutTmpl, ok = e.templates[layoutName]
+		e.mu.RUnlock()
+
+		if !ok {
+			return fmt.Errorf("layout template %q not found", layoutName)
+		}
+	}
+
+	if layoutTmpl != nil {
+		// Clone the layout to avoid modifying the original
+		layoutCopy := &Template{
+			root:       layoutTmpl.root,
+			parts:      make(map[string]*Template),
+			filt:       layoutTmpl.filt,
+			fieldCache: layoutTmpl.fieldCache,
+		}
+		for k, v := range layoutTmpl.parts {
+			layoutCopy.parts[k] = v
+		}
+		layoutCopy.RegisterPartial("content", tmpl)
+		return layoutCopy.Render(w, data)
+	} else {
+		return tmpl.Render(w, data)
+	}
+}
+
+// RenderString renders the specified template with optional layout and returns a string
+func (e *Engine) RenderString(tmplName string, data any, layout ...string) (string, error) {
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	sb.Reset()
+	defer stringBuilderPool.Put(sb)
+	if err := e.Render(sb, tmplName, data, layout...); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
+}
+
 // ----------------------------- Buffer and context pools ---------------------
 
 var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
