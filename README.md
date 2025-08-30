@@ -21,7 +21,7 @@ A high-performance, zero-allocation template engine for Go that compiles templat
 ## Installation
 
 ```bash
-go get github.com/yourusername/fasttpl
+go get github.com/oarkflow/fasttpl
 ```
 
 ## Running Examples
