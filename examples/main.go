@@ -122,11 +122,6 @@ func RunReloadServer() {
 	fmt.Println("🌐 Server running at: http://localhost:8080")
 	fmt.Println("📊 Status endpoint: http://localhost:8080/status")
 	fmt.Println("")
-	fmt.Println("Try editing files like:")
-	fmt.Println("  - templates/index.html")
-	fmt.Println("  - templates/_header.html")
-	fmt.Println("  - templates/_footer.html")
-	fmt.Println("")
 	fmt.Println("Changes will be automatically reloaded!")
 
 	// Handle graceful shutdown
