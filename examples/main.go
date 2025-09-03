@@ -120,7 +120,6 @@ func RunReloadServer() {
 	fmt.Println("📁 Templates directory: ./templates/")
 	fmt.Println("🔄 Engine-based rendering with layout support and auto-reload")
 	fmt.Println("🌐 Server running at: http://localhost:8080")
-	fmt.Println("📊 Status endpoint: http://localhost:8080/status")
 	fmt.Println("")
 	fmt.Println("Changes will be automatically reloaded!")
 
